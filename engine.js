@@ -380,20 +380,27 @@ var engine = function(torrent, opts) {
 		if (!info_dictionary_pieces) {
 			return;
 		}
+		var available = [];
 
 		swarm.wires.forEach(function(peer) {
 			if (!canRequestInfodictionary(peer)) {
 				return;
 			}
+			available.push(peer);
+
+			
+
+		});
+
+		available.slice(0, 3).forEach(function(peer) {
 			for (var i = 0; i < info_dictionary_pieces.length; i++) {
 				var piece_num = i;
 				if (peer.requested_metadata_pieces[piece_num]) {
 					continue;
 				}
 				peer.requestMetadataPiece(piece_num);
-				console.log('info-dictionary requested');
+				//console.log('info-dictionary requested');
 			}
-
 		});
 	};
 	
@@ -443,7 +450,7 @@ var engine = function(torrent, opts) {
 			console.assert(offset == metadata_size);
 
 
-			console.log('has_info_dictionary');
+			//console.log('has_info_dictionary');
 
 
 			var trnt = parseTorrent.parseInfoDictionary(new Buffer(result));
@@ -477,7 +484,7 @@ var engine = function(torrent, opts) {
 			wire.destroy();
 		});
 
-		console.log('wire');
+		//console.log('wire');
 
 
 		wire.on('extended_hanshake', checkInfoDictionary);
@@ -551,6 +558,9 @@ var engine = function(torrent, opts) {
 	
 
 	that.connect = function(addr) {
+		if (this._destroyed) {
+			return;
+		}
 		swarm.add(addr);
 	};
 
@@ -631,10 +641,18 @@ var engine = function(torrent, opts) {
 	};
 
 	that.destroy = function(cb) {
+		if (this._destroyed) {
+			return;
+		}
+		this._destroyed = true;
 		swarm.destroy();
+		if (this.dht) {
+			this.dht.destroy();
+		}
 		if (has_info_dictionary) {
 			store.destroy(cb);
 		}
+		this.emit('destroy');
 		
 	};
 
