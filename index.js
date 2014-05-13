@@ -659,6 +659,9 @@ var torrentStream = function(link, opts) {
 	};
 
 	engine.destroy = function(cb) {
+		if (destroyed) {
+			return;
+		}
 		destroyed = true;
 		swarm.destroy();
 		if (engine.tracker) engine.tracker.stop();
@@ -668,6 +671,7 @@ var torrentStream = function(link, opts) {
 		} else if (cb) {
 			process.nextTick(cb);
 		}
+		this.emit('destroy');
 	};
 
 	engine.listen = function(port, cb) {
