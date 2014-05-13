@@ -18,6 +18,7 @@ var encode = require('./encode-metadata');
 var storage = require('./storage');
 var fileStream = require('./file-stream');
 var piece = require('./piece');
+var util = require('util');
 
 var MAX_REQUESTS = 5;
 var CHOKE_TIMEOUT = 5000;
@@ -106,6 +107,7 @@ var torrentStream = function(link, opts) {
 	engine.files = [];
 	engine.selection = [];
 	engine.torrent = null;
+	engine.reusable_torrent = null;
 	engine.bitfield = null;
 	engine.amInterested = false;
 	engine.store = null;
@@ -129,8 +131,13 @@ var torrentStream = function(link, opts) {
 	}
 
 	var ontorrent = function(torrent) {
+
 		engine.store = storage(opts.path, torrent);
+
+
 		engine.torrent = torrent;
+		engine.reusable_torrent =  util._extend({}, torrent);
+
 		engine.bitfield = bitfield(torrent.pieces.length);
 
 		var pieceLength = torrent.pieceLength;
@@ -154,8 +161,8 @@ var torrentStream = function(link, opts) {
 
 			tr.start();
 		}
-
-		torrent.files.forEach(function(file) {
+		engine.files = torrent.files.map(function(file) {
+			file = util._extend({}, file);
 			var offsetPiece = (file.offset / torrent.pieceLength) | 0;
 			var endPiece = ((file.offset+file.length-1) / torrent.pieceLength) | 0;
 
@@ -179,7 +186,7 @@ var torrentStream = function(link, opts) {
 				return stream;
 			};
 
-			engine.files.push(file);
+			return file;
 		});
 
 		var oninterestchange = function() {
