@@ -8,9 +8,13 @@ var dht = require('./dht');
 var fileStream = require('./file-stream');
 var parseTorrent = require('parse-torrent');
 var eos = require('end-of-stream');
+var util = require('util');
+
+
 var handleFiles = function(pf_engine, torrent) {
 	var e = pf_engine;
-	e.files = torrent.files.map(function(file) {
+	e.files = torrent.files.map(function(file, i) {
+		file = util._extend({index: i}, file);
 		var offsetPiece = (file.offset / torrent.pieceLength) | 0;
 		var endPiece = ((file.offset+file.length-1) / torrent.pieceLength) | 0;
 
@@ -37,12 +41,49 @@ var handleFiles = function(pf_engine, torrent) {
 	});
 	e.emit('files-list', e.files);
 };
+
+var getMagnetTorrent = function(url) {
+	url = decodeURI(url);
+	var params = require('querystring').parse(url.replace(/^magnet\:\?/,''));
+	var infoHash = params.xt && params.xt.indexOf('urn:btih:') === 0 && params.xt.replace('urn:btih:', '');
+	if (infoHash && infoHash.length == 40) {
+		return {
+			infoHash: infoHash
+		};
+	}
+};
+
+var info_dictionaries_index = {};
+
+
+var getTorrentObj = function(torrent) {
+	if (typeof torrent == 'string') {
+		if (torrent.match(/^magnet\:/)) {
+			torrent = getMagnetTorrent(torrent);
+			var torrent_with_dict = info_dictionaries_index[ torrent.infoHash ];
+			if ( torrent_with_dict ) {
+				torrent = util._extend(torrent, torrent_with_dict);
+			}
+		}
+	} else {
+		torrent = !Buffer.isBuffer(torrent) && typeof torrent === 'object' ? torrent : parseTorrent(torrent);
+	}
+	return torrent;
+};
+
 module.exports = function(torrent, opts) {
-	torrent = !Buffer.isBuffer(torrent) && typeof torrent === 'object' ? torrent : parseTorrent(torrent);
+	torrent = getTorrentObj(torrent);
+	
+	
 
 	var e = engine(torrent, opts);
 	e.on('info-dictionary', function() {
+		if ( !info_dictionaries_index[ e.torrent.infoHash ] ) {
+			info_dictionaries_index[ e.torrent.infoHash ] = e.torrent;
+		}
+
 		handleFiles(e, e.torrent);
+
 	});
 	
 
@@ -54,7 +95,11 @@ module.exports = function(torrent, opts) {
 		e.connect(addr);
 	});
 
+	e.dht = table;
+
 	return e;
 };
+
+module.exports.getTorrentObj = getTorrentObj;
 
 })();
