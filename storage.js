@@ -22,8 +22,9 @@ module.exports = function(folder, torrent) {
 		var firstPiece = Math.floor(fileStart / pieceLength);
 		var lastPiece  = Math.floor((fileEnd - 1) / pieceLength);
 
+		var filePath = path.join(folder, file.path);
 		var open = thunky(function(cb) {
-			var filePath = path.join(folder, file.path);
+			
 			var fileDir  = path.dirname(filePath);
 
 			mkdirp(fileDir, function(err) {
@@ -50,7 +51,8 @@ module.exports = function(folder, torrent) {
 				from:    from,
 				to:      to,
 				offset:  offset,
-				open:    open
+				open:    open,
+				filePath: filePath
 			});
 		}
 	});
@@ -103,10 +105,18 @@ module.exports = function(folder, torrent) {
 				}
 			}
 
-			target.open(function(err, file) {
-				if (err) return cb(err);
-				file.read(offset, to - from, next);
+			fs.exists(target.filePath, function(exists) {
+				if (!exists) {
+					cb(new Error('file does not exist'));
+				} else {
+					target.open(function(err, file) {
+						if (err) return cb(err);
+						file.read(offset, to - from, next);
+					});
+				}
 			});
+
+			
 		};
 
 		next();
