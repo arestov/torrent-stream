@@ -135,8 +135,8 @@ var torrentStream = function(link, opts) {
 		engine.store = storage(opts.path, torrent);
 
 
-		engine.torrent = torrent;
-		engine.reusable_torrent =  util._extend({}, torrent);
+		engine.torrent = util._extend({}, torrent);
+		engine.reusable_torrent = torrent;
 
 		engine.bitfield = bitfield(torrent.pieces.length);
 
