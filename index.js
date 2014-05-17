@@ -18,7 +18,6 @@ var encode = require('./encode-metadata');
 var storage = require('./storage');
 var fileStream = require('./file-stream');
 var piece = require('./piece');
-var util = require('util');
 
 var MAX_REQUESTS = 5;
 var CHOKE_TIMEOUT = 5000;
@@ -131,7 +130,7 @@ var torrentStream = function(link, opts) {
 	}
 
 	var getTracker = function(torrent) {
-		var torrent_ft = util._extend({}, torrent);
+		var torrent_ft = Object.create(torrent);
 		var trackers_list = [];
 		[torrent_ft.announce, opts.trackers].forEach(function(array) {
 			if (array) {
@@ -157,7 +156,7 @@ var torrentStream = function(link, opts) {
 		engine.store = storage(opts.path, torrent);
 
 
-		engine.torrent = util._extend({}, torrent);
+		engine.torrent = Object.create(torrent);
 		engine.reusable_torrent = torrent;
 
 		engine.bitfield = bitfield(torrent.pieces.length);
