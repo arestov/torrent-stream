@@ -559,7 +559,6 @@ var torrentStream = function(link, opts) {
 					ontorrent(parseTorrent(result));
 
 					var buf = bncode.encode(result);
-					ontorrent(parseTorrent(buf));
 
 					mkdirp(path.dirname(torrentPath), function(err) {
 						if (err) return engine.emit('error', err);
