@@ -178,8 +178,9 @@ var torrentStream = function(link, opts) {
 			}
 			
 		}
+
 		engine.files = torrent.files.map(function(file) {
-			file = util._extend({}, file);
+			file = Object.create(file);
 			var offsetPiece = (file.offset / torrent.pieceLength) | 0;
 			var endPiece = ((file.offset+file.length-1) / torrent.pieceLength) | 0;
 
@@ -558,10 +559,10 @@ var torrentStream = function(link, opts) {
 					ontorrent(parseTorrent(result));
 
 					var buf = bncode.encode(result);
+					ontorrent(parseTorrent(buf));
+
 					mkdirp(path.dirname(torrentPath), function(err) {
-						if (err) {
-							engine.emit('error', err);
-						}
+						if (err) return engine.emit('error', err);
 						fs.writeFile(torrentPath, buf, function(err) {
 							if (err) engine.emit('error', err);
 						});
