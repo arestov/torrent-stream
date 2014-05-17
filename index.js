@@ -130,16 +130,17 @@ var torrentStream = function(link, opts) {
 	}
 
 	var getTracker = function(torrent) {
-		var torrent_ft = Object.create(torrent);
-		var trackers_list = [];
-		[torrent_ft.announce, opts.trackers].forEach(function(array) {
-			if (array) {
-				trackers_list = trackers_list.concat(array);
-			}
-		});
-		torrent_ft.announce = trackers_list;
+		var torrentTrExtd;
 
-		var tr = new tracker.Client(new Buffer(opts.id), engine.port || DEFAULT_PORT, torrent_ft);
+		if (opts.trackers) {
+			torrentTrExtd = Object.create(torrent);
+			//cloning "torrent" obj to freely modify "announce" prop
+			torrentTrExtd.announce = (torrentTrExtd.announce || []).concat(opts.trackers);
+		} else {
+			torrentTrExtd = torrent;
+		}
+
+		var tr = new tracker.Client(new Buffer(opts.id), engine.port || DEFAULT_PORT, torrentTrExtd);
 
 		tr.on('peer', function(addr) {
 			engine.connect(addr);
