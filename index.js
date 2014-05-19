@@ -96,7 +96,7 @@ var torrentStream = function(link, opts) {
 	}
 
 	var engine = new events.EventEmitter();
-	var swarm = pws(infoHash, opts.id, {size:opts.connections || opts.size});
+	var swarm = pws(infoHash, opts.id, { size: (opts.connections || opts.size), speed: 10 });
 	var torrentPath = path.join(opts.tmp, opts.name, infoHash + '.torrent');
 
 	var wires = swarm.wires;
@@ -105,7 +105,7 @@ var torrentStream = function(link, opts) {
 	var metadata = null;
 	var refresh = noop;
 
-	var rechokeSlots = (opts.uploads === false || opts.uploads === 0) ? 0 : (+opts.uploads || 5);
+	var rechokeSlots = (opts.uploads === false || opts.uploads === 0) ? 0 : (+opts.uploads || 10);
 	var rechokeOptimistic = null;
 	var rechokeOptimisticTime = 0;
 	var rechokeIntervalId;
