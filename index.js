@@ -137,18 +137,16 @@ var torrentStream = function(link, opts) {
 		table.findPeers(opts.dht || DHT_SIZE); // TODO: be smarter about finding peers
 	}
 
-	var getTracker = function(torrent) {
-		var torrentTrExtd;
-
+	var createTracker = function(torrent) {
 		if (opts.trackers) {
-			torrentTrExtd = Object.create(torrent);
-			//cloning "torrent" obj to freely modify "announce" prop
-			torrentTrExtd.announce = (torrentTrExtd.announce || []).concat(opts.trackers);
-		} else {
-			torrentTrExtd = torrent;
+			torrent = Object.create(torrent);
+			var trackers = (opts.tracker !== false) && torrent.announce ? torrent.announce : [];
+			torrent.announce = trackers.concat(opts.trackers);
+		} else if (opts.tracker === false) {
+			return;
 		}
 
-		var tr = new tracker.Client(new Buffer(opts.id), engine.port || DEFAULT_PORT, torrentTrExtd);
+		var tr = new tracker.Client(new Buffer(opts.id), engine.port || DEFAULT_PORT, torrent);
 
 		tr.on('peer', function(addr) {
 			engine.connect(addr);
@@ -180,11 +178,19 @@ var torrentStream = function(link, opts) {
 			return [];
 		});
 
-		if (opts.tracker !== false) {
-			if (!engine.tracker) {
-				engine.tracker = getTracker(torrent);
-			}
-			
+		if (engine.tracker) {
+			/*
+			If we have tracker then it had been created before we got infoDictionary.
+			So client do not know torrent length and can not report right information about uploads
+			*/
+			engine.tracker.torrentLength = torrent.length;
+		} else {
+			process.nextTick(function() {
+				// let execute engine.listen() before createTracker()
+				if (!engine.tracker) {
+					engine.tracker = createTracker(torrent);
+				}
+			});
 		}
 
 		engine.files = torrent.files.map(function(file) {
@@ -676,9 +682,18 @@ var torrentStream = function(link, opts) {
 			if (destroyed) return;
 			swarm.resume();
 			if (!buf) {
-				engine.tracker = getTracker(link);
-				return
-			};
+				/* 
+				We know only infoHash here, not full infoDictionary.
+				But infoHash is enough to connect to trackers and get peers.
+				*/
+				process.nextTick(function() {
+					// let execute engine.listen() before createTracker()
+					if (!engine.tracker) {
+						engine.tracker = createTracker(link);
+					}
+				});
+				return;
+			}
 			var torrent = parseTorrent(buf);
 			metadata = encode(torrent);
 			if (metadata) ontorrent(torrent);
@@ -779,6 +794,9 @@ var torrentStream = function(link, opts) {
 		if (typeof port === 'function') return engine.listen(0, port);
 		engine.port = port || DEFAULT_PORT;
 		swarm.listen(engine.port, cb);
+
+		if (engine.tracker) engine.tracker.stop();
+		if (engine.torrent) engine.tracker = createTracker(engine.torrent);
 	};
 
 	return engine;
