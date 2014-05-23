@@ -787,7 +787,9 @@ var torrentStream = function(link, opts) {
 		} else if (cb) {
 			process.nextTick(cb);
 		}
+		this.swarm = swarm = engine.tracker = engine.store = null;
 		this.emit('destroy');
+		engine = null;
 	};
 
 	engine.listen = function(port, cb) {
