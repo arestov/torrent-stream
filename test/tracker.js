@@ -11,11 +11,7 @@ var torrent = parseTorrent(fs.readFileSync(path.join(__dirname, 'data', 'test.to
 var tmpPath = path.join(__dirname, '..', 'torrents', 'test');
 rimraf.sync(tmpPath);
 
-var fixture = torrents(torrent, {
-	dht: false,
-	path: path.join(__dirname, 'data')
-});
-fixture.listen(6882);
+var fixture;
 
 server.on('error', function () {
 });
@@ -23,13 +19,19 @@ server.on('error', function () {
 test('seed should connect to the tracker', function (t) {
 	t.plan(3);
 
-	server.once('listening', t.ok.bind(t, true, 'tracker should be listening'));
+	server.once('listening', function () {
+		t.ok(true, 'tracker should be listening');
+		fixture = torrents(torrent, {
+		        dht: false,
+		        path: path.join(__dirname, 'data')
+		});
+		fixture.listen(6882);
+		fixture.once('ready', t.ok.bind(t, true, 'should be ready'));
+	});
 	server.once('start', function (addr) {
 		t.equal(addr, '127.0.0.1:6882');
 	});
 	server.listen(12345);
-
-	fixture.once('ready', t.ok.bind(t, true, 'should be ready'));
 });
 
 test('peer should connect to the swarm using .torrent file', function (t) {
@@ -99,23 +101,6 @@ test('peer should connect to an alternate tracker', function (t) {
 		t.ok(true, 'should be ready');
 		engine.destroy(t.ok.bind(t, true, 'should be destroyed'));
 		server.close(t.ok.bind(t, true, 'tracker should be closed'));
-	});
-});
-
-test('peer should connect to public trackers', function (t) {
-	t.plan(2);
-	var engine = torrents('magnet:?xt=urn:btih:2e0ba00b6ae7d68d03a61e682fe85e6964796b27',
-		{ dht: false, tmp: tmpPath, trackers: [
-			'udp://tracker.publicbt.com:80',
-			'udp://tracker.openbittorrent.com:80',
-			'udp://tracker.ccc.de:80',
-			'udp://tracker.istole.it:80'
-		] });
-	engine.once('ready', function () {
-		t.ok(true, 'should be ready');
-		engine.destroy(function () {
-			engine.remove(t.ok.bind(t, true, 'should be destroyed'));
-		});
 	});
 });
 

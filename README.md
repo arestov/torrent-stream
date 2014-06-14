@@ -60,16 +60,17 @@ Create a new engine instance. Options can contain the following
 	path: '/tmp/my-file', // Where to save the files. Overrides `tmp`.
 	verify: true,         // Verify previously stored data before starting
 	                      // Defaults to true
-	dht: 10000,           // Use DHT to initialize the swarm.
-	                      // Defaults to 10000 peers, set false to disable
+	dht: true,            // Whether or not to use DHT to initialize the swarm.
+	                      // Defaults to true
 	tracker: true,        // Whether or not to use trackers from torrent file or magnet link
 	                      // Defaults to true
 	trackers: [
 	    'udp://tracker.openbittorrent.com:80',
 	    'udp://tracker.ccc.de:80'
-	]
+	],
 	                      // Allows to declare additional custom trackers to use
 	                      // Defaults to empty
+	storage: myStorage()  // Use a custom storage backend rather than the default disk-backed one
 }
 ```
 
@@ -101,6 +102,10 @@ Connect to a peer manually
 #### `engine.disconnect('127.0.0.1:6881')`
 
 Disconnect from a peer manually
+
+#### `engine.block('127.0.0.1:6881')`
+
+Disconnect from a peer and add it to the blocklist, preventing any other connection to it
 
 #### `engine.remove([keep-pieces], cb)`
 
