@@ -57,8 +57,25 @@ var torrentStream = function(link, opts, cb) {
 	var metadata = null;
 
 	if (Buffer.isBuffer(link)) {
-		metadata = bncode.encode(bncode.decode(link).info);
-		link = parseTorrent(link);
+		(function() {
+			var decoded = bncode.decode(link);
+			metadata = bncode.encode(decoded.info);
+			if (opts.prevalidate) {
+				var init_error = opts.prevalidate.call(null, decoded.info);
+
+				if (!init_error) {
+					link = parseTorrent(decoded);
+				} else {
+					var fake_engine = new events.EventEmitter();
+					process.nextTick(function() {
+						engine.emit('prevalidation-error', init_error);
+						engine.emit('destroy');
+					});
+					return fake_engine;
+				}
+			}
+		})();
+		
 	} else if (typeof link === 'string') {
 		link = magnet(link);
 	} else if (!link.infoHash) {
@@ -112,6 +129,17 @@ var torrentStream = function(link, opts, cb) {
 	var discovery = peerDiscovery(opts);
 	var blocked = blocklist(opts.blocklist);
 
+	var canUseDict = function(dict) {
+		var error = opts.prevalidate && opts.prevalidate.call(null, dict);
+		if (error) {
+			engine.emit('prevalidation-error', error);
+			engine.destroy();
+			return false;
+		} else {
+			return true;
+		}
+	};
+
 	discovery.on('peer', function(addr) {
 		if (blocked.contains(addr.split(':')[0])) {
 			engine.emit('blocked-peer', addr);
@@ -122,10 +150,11 @@ var torrentStream = function(link, opts, cb) {
 	});
 
 	var ontorrent = function(torrent) {
+		torrent = Object.create(torrent);
 
 		engine.store = (opts.storage || storage(opts.path))(torrent, opts);
 
-		engine.torrent = Object.create(torrent);
+		engine.torrent = torrent;
 		engine.reusable_torrent = torrent;
 
 		engine.bitfield = bitfield(torrent.pieces.length);
@@ -160,6 +189,9 @@ var torrentStream = function(link, opts, cb) {
 
 				engine.select(stream.startPiece, stream.endPiece, true, stream.notify.bind(stream));
 				eos(stream, function() {
+					if (destroyed) {
+						return;
+					}
 					engine.deselect(stream.startPiece, stream.endPiece, true);
 				});
 
@@ -544,14 +576,25 @@ var torrentStream = function(link, opts, cb) {
 
 		engine.emit('verifying');
 
+		var wrapLoop = function(i) {
+			return process.nextTick(function() {
+				loop(i);
+			});
+		};
+
+		
+
 		var loop = function(i) {
+			if (destroyed) {
+				return;
+			}
 			if (i >= torrent.pieces.length) return onready();
 			engine.store.read(i, function(_, buf) {
-				if (!buf || sha1(buf) !== torrent.pieces[i] || !pieces[i]) return loop(i+1);
+				if (!buf || sha1(buf) !== torrent.pieces[i] || !pieces[i]) return wrapLoop(i+1);
 				pieces[i] = null;
 				engine.bitfield.set(i, true);
 				engine.emit('verify', i);
-				loop(i+1);
+				wrapLoop(i+1);
 			});
 		};
 
@@ -559,17 +602,21 @@ var torrentStream = function(link, opts, cb) {
 	};
 
 	var exchange = exchangeMetadata(engine, function(metadata) {
-		var buf = bncode.encode({
-			info: bncode.decode(metadata),
-			'announce-list': []
-		});
+		var infoDictionary = bncode.decode(metadata);
+		var can_use = canUseDict(infoDictionary);
+		if (!can_use) {return;}
 
-		ontorrent(parseTorrent(buf));
+		var decoded = {
+			info: infoDictionary,
+			'announce-list': []
+		};
+
+		ontorrent(parseTorrent(decoded));
 
 
 		mkdirp(path.dirname(torrentPath), function(err) {
 			if (err) return engine.emit('error', err);
-			fs.writeFile(torrentPath, buf, function(err) {
+			fs.writeFile(torrentPath, bncode.encode(decoded), function(err) {
 				if (err) engine.emit('error', err);
 			});
 		});
@@ -595,12 +642,17 @@ var torrentStream = function(link, opts, cb) {
 			// But infoHash is enough to connect to trackers and get peers.
 			if (!buf) return discovery.setTorrent(link);
 
-			var torrent = parseTorrent(buf);
+			var decoded = bncode.decode(buf);
+
+			var can_use = canUseDict(decoded.info);
+			if (!can_use) {return;}
+
+			var torrent = parseTorrent(decoded);
 
 			// Bad cache file - fetch it again
 			if (torrent.infoHash !== infoHash) return discovery.setTorrent(link);
 
-			engine.metadata = bncode.encode(bncode.decode(buf).info);
+			engine.metadata = bncode.encode(decoded.info);
 			ontorrent(torrent);
 		});
 	}
